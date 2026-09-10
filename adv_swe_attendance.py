@@ -122,6 +122,12 @@ def get_attendance_window(now: datetime) -> tuple[datetime, datetime]:
     return window_start, window_end
 
 
+def format_countdown(total_seconds: int) -> str:
+    hours, remainder = divmod(max(0, total_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
 def wait_until_attendance_window() -> datetime:
     timezone_name = os.getenv("ATTENDANCE_TIMEZONE", DEFAULT_ATTENDANCE_TIMEZONE)
     timezone = ZoneInfo(timezone_name)
@@ -137,7 +143,17 @@ def wait_until_attendance_window() -> datetime:
     if now < window_start:
         wait_seconds = int((window_start - now).total_seconds())
         log(f"Outside attendance window. Waiting {wait_seconds} seconds until it opens...")
-        time.sleep(wait_seconds)
+        while wait_seconds > 0:
+            log(
+                "Countdown to attendance start: "
+                f"{format_countdown(wait_seconds)} "
+                f"(opens at {window_start.strftime('%H:%M:%S')} {timezone_name})"
+            )
+            sleep_seconds = min(30 if wait_seconds > 60 else 10, wait_seconds)
+            time.sleep(sleep_seconds)
+            now = datetime.now(timezone)
+            wait_seconds = int((window_start - now).total_seconds())
+        log("Attendance window is open. Starting checks now.")
     elif now <= window_end:
         log("Inside attendance window. Starting checks now.")
 
